@@ -162,7 +162,7 @@ resource "azapi_resource" "example" {
 	```
 
 To learn more about JMESPath, visit [JMESPath](https://jmespath.org/).
-- `retry` (Attributes) The retry block supports the following arguments: (see [below for nested schema](#nestedatt--retry))
+- `retry` (Attributes) The retry object supports the following attributes: (see [below for nested schema](#nestedatt--retry))
 - `schema_validation_enabled` (Boolean) Whether enabled the validation on `type` and `body` with embedded schema. Defaults to `true`.
 - `tags` (Map of String) A mapping of tags which should be assigned to the Azure resource.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
@@ -208,7 +208,7 @@ Read-Only:
 
 Required:
 
-- `error_message_regex` (List of String) A list of regular expressions to match against error messages. If any of the regular expressions match, the error is considered retryable.
+- `error_message_regex` (List of String) A list of regular expressions to match against error messages. If any of the regular expressions match, the request will be retried.
 
 Optional:
 

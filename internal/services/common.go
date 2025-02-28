@@ -3,23 +3,11 @@ package services
 import (
 	"encoding/json"
 	"errors"
-	"os"
-	"time"
 
 	"github.com/Azure/terraform-provider-azapi/internal/services/dynamic"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
-
-func RetryGetAfterPut() time.Duration {
-	if v := os.Getenv("AZAPI_RETRY_GET_AFTER_PUT_MAX_TIME"); v != "" {
-		timeout, err := time.ParseDuration(v)
-		if err == nil {
-			return timeout
-		}
-	}
-	return 2 * time.Minute
-}
 
 func buildOutputFromBody(responseBody interface{}, modelResponseExportValues types.Dynamic, defaultResult interface{}) (types.Dynamic, error) {
 	if modelResponseExportValues.IsNull() {

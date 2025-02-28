@@ -1,0 +1,155 @@
+{
+  "$schema": "https://raw.githubusercontent.com/hashicorp/terraform-plugin-codegen-spec/main/spec/v0.1/schema.json",
+  "version": "0.1",
+  "provider": {
+    "name": "retry",
+    "version": "0.1.0"
+  },
+  "resources": [
+    {
+      "name": "retry_resource",
+      "schema": {
+        "attributes": [
+          {
+            "name": "retry",
+            "single_nested": {
+              "computed_optional_required": "optional",
+              "description": "The retry object supports the following attributes:",
+              "attributes": [
+                {
+                  "name": "interval_seconds",
+                  "int64": {
+                    "computed_optional_required": "computed_optional",
+                    "description": "The base number of seconds to wait between retries. Default is `10`.",
+                    "default": {
+                      "static": 10
+                    },
+                    "validators": [
+                      {
+                        "custom": {
+                          "imports": [
+                            {
+                              "path": "github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+                            }
+                          ],
+                          "schema_definition": "int64validator.AtLeast(1)"
+                        }
+                      },
+                      {
+                        "custom": {
+                          "imports": [
+                            {
+                              "path": "github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+                            }
+                          ],
+                          "schema_definition": "int64validator.AtMost(120)"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "name": "max_interval_seconds",
+                  "int64": {
+                    "computed_optional_required": "computed_optional",
+                    "description": "The maximum number of seconds to wait between retries. Default is `180`.",
+                    "default": {
+                      "static": 180
+                    },
+                    "validators": [
+                      {
+                        "custom": {
+                          "imports": [
+                            {
+                              "path": "github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+                            }
+                          ],
+                          "schema_definition": "int64validator.AtLeast(1)"
+                        }
+                      },
+                      {
+                        "custom": {
+                          "imports": [
+                            {
+                              "path": "github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+                            }
+                          ],
+                          "schema_definition": "int64validator.AtMost(300)"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "name": "multiplier",
+                  "float64": {
+                    "computed_optional_required": "computed_optional",
+                    "description": "The multiplier to apply to the interval between retries. Default is `1.5`.",
+                    "default": {
+                      "static": 1.5
+                    }
+                  }
+                },
+                {
+                  "name": "randomization_factor",
+                  "float64": {
+                    "computed_optional_required": "computed_optional",
+                    "description": "The randomization factor to apply to the interval between retries. The formula for the randomized interval is: `RetryInterval * (random value in range [1 - RandomizationFactor, 1 + RandomizationFactor])`. Therefore set to zero `0.0` for no randomization. Default is `0.5`.",
+                    "default": {
+                      "static": 0.5
+                    }
+                  }
+                },
+                {
+                  "name": "error_message_regex",
+                  "list": {
+                    "description": "A list of regular expressions to match against error messages. If any of the regular expressions match, the request will be retried.",
+                    "element_type": {
+                      "string": {}
+                    },
+                    "computed_optional_required": "required",
+                    "validators": [
+                      {
+                        "custom": {
+                          "imports": [
+                            {
+                              "path": "github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+                            },
+                            {
+                              "path": "github.com/Azure/terraform-provider-azapi/internal/services/myvalidator"
+                            }
+                          ],
+                          "schema_definition": "listvalidator.ValueStringsAre(myvalidator.StringIsValidRegex())"
+                        }
+                      },
+                      {
+                        "custom": {
+                          "imports": [
+                            {
+                              "path": "github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+                            }
+                          ],
+                          "schema_definition": "listvalidator.UniqueValues()"
+                        }
+                      },
+                      {
+                        "custom": {
+                          "imports": [
+                            {
+                              "path": "github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+                            }
+                          ],
+                          "schema_definition": "listvalidator.SizeAtLeast(1)"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

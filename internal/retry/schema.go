@@ -2,77 +2,66 @@ package retry
 
 import (
 	"context"
-	"math/big"
 
 	"github.com/Azure/terraform-provider-azapi/internal/services/myvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/numberdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-const (
-	intervalSecondsAttributeName     = "interval_seconds"
-	maxIntervalSecondsAttributeName  = "max_interval_seconds"
-	multiplierAttributeName          = "multiplier"
-	randomizationFactorAttributeName = "randomization_factor"
-	errorMessageRegexAttributeName   = "error_message_regex"
-)
-
-func SingleNestedAttribute(ctx context.Context) schema.Attribute {
+func RetrySchema(ctx context.Context) schema.Attribute {
 	return schema.SingleNestedAttribute{
-		MarkdownDescription: "The retry block supports the following arguments:",
-		Optional:            true,
 		Attributes: map[string]schema.Attribute{
-
-			intervalSecondsAttributeName: schema.Int64Attribute{
-				MarkdownDescription: "The base number of seconds to wait between retries. Default is `10`.",
-				Optional:            true,
-				Computed:            true,
-				Default:             int64default.StaticInt64(defaultIntervalSeconds),
-				Validators: []validator.Int64{
-					int64validator.AtLeast(1),
-					int64validator.AtMost(120),
-				},
-			},
-
-			maxIntervalSecondsAttributeName: schema.Int64Attribute{
-				MarkdownDescription: "The maximum number of seconds to wait between retries. Default is `180`.",
-				Optional:            true,
-				Computed:            true,
-				Default:             int64default.StaticInt64(defaultMaxIntervalSeconds),
-				Validators: []validator.Int64{
-					int64validator.AtLeast(1),
-					int64validator.AtMost(300),
-				},
-			},
-
-			multiplierAttributeName: schema.NumberAttribute{
-				MarkdownDescription: "The multiplier to apply to the interval between retries. Default is `1.5`.",
-				Optional:            true,
-				Computed:            true,
-				Default:             numberdefault.StaticBigFloat(big.NewFloat(float64(defaultMultiplier))),
-			},
-
-			randomizationFactorAttributeName: schema.NumberAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             numberdefault.StaticBigFloat(big.NewFloat(float64(defaultRandomizationFactor))),
-				MarkdownDescription: "The randomization factor to apply to the interval between retries. The formula for the randomized interval is: `RetryInterval * (random value in range [1 - RandomizationFactor, 1 + RandomizationFactor])`. Therefore set to zero `0.0` for no randomization. Default is `0.5`.",
-			},
-
-			errorMessageRegexAttributeName: schema.ListAttribute{
+			"error_message_regex": schema.ListAttribute{
 				ElementType:         types.StringType,
-				MarkdownDescription: "A list of regular expressions to match against error messages. If any of the regular expressions match, the error is considered retryable.",
 				Required:            true,
+				Description:         "A list of regular expressions to match against error messages. If any of the regular expressions match, the request will be retried.",
+				MarkdownDescription: "A list of regular expressions to match against error messages. If any of the regular expressions match, the request will be retried.",
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(myvalidator.StringIsValidRegex()),
 					listvalidator.UniqueValues(),
 					listvalidator.SizeAtLeast(1),
 				},
+			},
+			"interval_seconds": schema.Int64Attribute{
+				Optional:            true,
+				Computed:            true,
+				Description:         "The base number of seconds to wait between retries. Default is `10`.",
+				MarkdownDescription: "The base number of seconds to wait between retries. Default is `10`.",
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+					int64validator.AtMost(120),
+				},
+				Default: int64default.StaticInt64(DefaultIntervalSeconds),
+			},
+			"max_interval_seconds": schema.Int64Attribute{
+				Optional:            true,
+				Computed:            true,
+				Description:         "The maximum number of seconds to wait between retries. Default is `180`.",
+				MarkdownDescription: "The maximum number of seconds to wait between retries. Default is `180`.",
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+					int64validator.AtMost(300),
+				},
+				Default: int64default.StaticInt64(DefaultMaxIntervalSeconds),
+			},
+			"multiplier": schema.Float64Attribute{
+				Optional:            true,
+				Computed:            true,
+				Description:         "The multiplier to apply to the interval between retries. Default is `1.5`.",
+				MarkdownDescription: "The multiplier to apply to the interval between retries. Default is `1.5`.",
+				Default:             float64default.StaticFloat64(DefaultMultiplier),
+			},
+			"randomization_factor": schema.Float64Attribute{
+				Optional:            true,
+				Computed:            true,
+				Description:         "The randomization factor to apply to the interval between retries. The formula for the randomized interval is: `RetryInterval * (random value in range [1 - RandomizationFactor, 1 + RandomizationFactor])`. Therefore set to zero `0.0` for no randomization. Default is `0.5`.",
+				MarkdownDescription: "The randomization factor to apply to the interval between retries. The formula for the randomized interval is: `RetryInterval * (random value in range [1 - RandomizationFactor, 1 + RandomizationFactor])`. Therefore set to zero `0.0` for no randomization. Default is `0.5`.",
+				Default:             float64default.StaticFloat64(DefaultRandomizationFactor),
 			},
 		},
 		CustomType: RetryType{
@@ -80,5 +69,8 @@ func SingleNestedAttribute(ctx context.Context) schema.Attribute {
 				AttrTypes: RetryValue{}.AttributeTypes(ctx),
 			},
 		},
+		Optional:            true,
+		Description:         "The retry object supports the following attributes:",
+		MarkdownDescription: "The retry object supports the following attributes:",
 	}
 }

@@ -3,7 +3,6 @@ package retry
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"regexp"
 	"strings"
 	"time"
@@ -18,25 +17,36 @@ import (
 var (
 	_ basetypes.ObjectTypable  = RetryType{}
 	_ basetypes.ObjectValuable = RetryValue{}
+
+	defaultRetryableStatusCodes                = []int{429}
+	defaultRetryableReadAfterCreateStatusCodes = []int{404, 403}
 )
 
 const (
-	defaultIntervalSeconds     = 10
-	defaultMaxIntervalSeconds  = 180
-	defaultMultiplier          = 1.5
-	defaultRandomizationFactor = 0.5
+	DefaultIntervalSeconds     = 10
+	DefaultMaxIntervalSeconds  = 180
+	DefaultMultiplier          = 1.5
+	DefaultRandomizationFactor = 0.5
 )
+
+var _ basetypes.ObjectTypable = RetryType{}
 
 type RetryType struct {
 	basetypes.ObjectType
 }
 
-func (t RetryType) ValueType(ctx context.Context) attr.Value {
-	return RetryValue{}
+func (t RetryType) Equal(o attr.Type) bool {
+	other, ok := o.(RetryType)
+
+	if !ok {
+		return false
+	}
+
+	return t.ObjectType.Equal(other.ObjectType)
 }
 
 func (t RetryType) String() string {
-	return "retry.RetryableErrorsType"
+	return "RetryType"
 }
 
 func (t RetryType) ValueFromObject(ctx context.Context, in basetypes.ObjectValue) (basetypes.ObjectValuable, diag.Diagnostics) {
@@ -44,12 +54,12 @@ func (t RetryType) ValueFromObject(ctx context.Context, in basetypes.ObjectValue
 
 	attributes := in.Attributes()
 
-	errorMessageRegexAttribute, ok := attributes[errorMessageRegexAttributeName]
+	errorMessageRegexAttribute, ok := attributes["error_message_regex"]
 
 	if !ok {
 		diags.AddError(
 			"Attribute Missing",
-			fmt.Sprintf(`%s is missing from object`, errorMessageRegexAttributeName))
+			`error_message_regex is missing from object`)
 
 		return nil, diags
 	}
@@ -59,15 +69,15 @@ func (t RetryType) ValueFromObject(ctx context.Context, in basetypes.ObjectValue
 	if !ok {
 		diags.AddError(
 			"Attribute Wrong Type",
-			fmt.Sprintf(`%s expected to be basetypes.ListValue, was: %T`, errorMessageRegexAttributeName, errorMessageRegexAttribute))
+			fmt.Sprintf(`error_message_regex expected to be basetypes.ListValue, was: %T`, errorMessageRegexAttribute))
 	}
 
-	intervalSecondsAttribute, ok := attributes[intervalSecondsAttributeName]
+	intervalSecondsAttribute, ok := attributes["interval_seconds"]
 
 	if !ok {
 		diags.AddError(
 			"Attribute Missing",
-			fmt.Sprintf(`%s is missing from object`, intervalSecondsAttributeName))
+			`interval_seconds is missing from object`)
 
 		return nil, diags
 	}
@@ -77,15 +87,15 @@ func (t RetryType) ValueFromObject(ctx context.Context, in basetypes.ObjectValue
 	if !ok {
 		diags.AddError(
 			"Attribute Wrong Type",
-			fmt.Sprintf(`%s expected to be basetypes.Int64Value, was: %T`, intervalSecondsAttributeName, intervalSecondsAttribute))
+			fmt.Sprintf(`interval_seconds expected to be basetypes.Int64Value, was: %T`, intervalSecondsAttribute))
 	}
 
-	maxIntervalSecondsAttribute, ok := attributes[maxIntervalSecondsAttributeName]
+	maxIntervalSecondsAttribute, ok := attributes["max_interval_seconds"]
 
 	if !ok {
 		diags.AddError(
 			"Attribute Missing",
-			fmt.Sprintf(`%s is missing from object`, maxIntervalSecondsAttributeName))
+			`max_interval_seconds is missing from object`)
 
 		return nil, diags
 	}
@@ -95,43 +105,43 @@ func (t RetryType) ValueFromObject(ctx context.Context, in basetypes.ObjectValue
 	if !ok {
 		diags.AddError(
 			"Attribute Wrong Type",
-			fmt.Sprintf(`%s expected to be basetypes.Int64Value, was: %T`, maxIntervalSecondsAttributeName, maxIntervalSecondsAttribute))
+			fmt.Sprintf(`max_interval_seconds expected to be basetypes.Int64Value, was: %T`, maxIntervalSecondsAttribute))
 	}
 
-	multiplierAttribute, ok := attributes[multiplierAttributeName]
+	multiplierAttribute, ok := attributes["multiplier"]
 
 	if !ok {
 		diags.AddError(
 			"Attribute Missing",
-			fmt.Sprintf(`%s is missing from object`, multiplierAttributeName))
+			`multiplier is missing from object`)
 
 		return nil, diags
 	}
 
-	multiplierVal, ok := multiplierAttribute.(basetypes.NumberValue)
+	multiplierVal, ok := multiplierAttribute.(basetypes.Float64Value)
 
 	if !ok {
 		diags.AddError(
 			"Attribute Wrong Type",
-			fmt.Sprintf(`%s expected to be basetypes.NumberValue, was: %T`, multiplierAttributeName, multiplierAttribute))
+			fmt.Sprintf(`multiplier expected to be basetypes.Float64Value, was: %T`, multiplierAttribute))
 	}
 
-	randomizationFactorAttribute, ok := attributes[randomizationFactorAttributeName]
+	randomizationFactorAttribute, ok := attributes["randomization_factor"]
 
 	if !ok {
 		diags.AddError(
 			"Attribute Missing",
-			fmt.Sprintf(`%s is missing from object`, randomizationFactorAttributeName))
+			`randomization_factor is missing from object`)
 
 		return nil, diags
 	}
 
-	randomizationFactorVal, ok := randomizationFactorAttribute.(basetypes.NumberValue)
+	randomizationFactorVal, ok := randomizationFactorAttribute.(basetypes.Float64Value)
 
 	if !ok {
 		diags.AddError(
 			"Attribute Wrong Type",
-			fmt.Sprintf(`%s expected to be basetypes.NumberValue, was: %T`, randomizationFactorAttributeName, randomizationFactorAttribute))
+			fmt.Sprintf(`randomization_factor expected to be basetypes.Float64Value, was: %T`, randomizationFactorAttribute))
 	}
 
 	if diags.HasError() {
@@ -171,11 +181,11 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 
 		if !ok {
 			diags.AddError(
-				"Missing RetryableErrorsValue Attribute Value",
-				"While creating a RetryableErrorsValue value, a missing attribute value was detected. "+
-					"A RetryableErrorsValue must contain values for all attributes, even if null or unknown. "+
+				"Missing RetryValue Attribute Value",
+				"While creating a RetryValue value, a missing attribute value was detected. "+
+					"A RetryValue must contain values for all attributes, even if null or unknown. "+
 					"This is always an issue with the provider and should be reported to the provider developers.\n\n"+
-					fmt.Sprintf("RetryableErrorsValue Attribute Name (%s) Expected Type: %s", name, attributeType.String()),
+					fmt.Sprintf("RetryValue Attribute Name (%s) Expected Type: %s", name, attributeType.String()),
 			)
 
 			continue
@@ -183,12 +193,12 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 
 		if !attributeType.Equal(attribute.Type(ctx)) {
 			diags.AddError(
-				"Invalid RetryableErrorsValue Attribute Type",
-				"While creating a RetryableErrorsValue value, an invalid attribute value was detected. "+
-					"A RetryableErrorsValue must use a matching attribute type for the value. "+
+				"Invalid RetryValue Attribute Type",
+				"While creating a RetryValue value, an invalid attribute value was detected. "+
+					"A RetryValue must use a matching attribute type for the value. "+
 					"This is always an issue with the provider and should be reported to the provider developers.\n\n"+
-					fmt.Sprintf("RetryableErrorsValue Attribute Name (%s) Expected Type: %s\n", name, attributeType.String())+
-					fmt.Sprintf("RetryableErrorsValue Attribute Name (%s) Given Type: %s", name, attribute.Type(ctx)),
+					fmt.Sprintf("RetryValue Attribute Name (%s) Expected Type: %s\n", name, attributeType.String())+
+					fmt.Sprintf("RetryValue Attribute Name (%s) Given Type: %s", name, attribute.Type(ctx)),
 			)
 		}
 	}
@@ -198,11 +208,11 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 
 		if !ok {
 			diags.AddError(
-				"Extra RetryableErrorsValue Attribute Value",
-				"While creating a RetryableErrorsValue value, an extra attribute value was detected. "+
-					"A RetryableErrorsValue must not contain values beyond the expected attribute types. "+
+				"Extra RetryValue Attribute Value",
+				"While creating a RetryValue value, an extra attribute value was detected. "+
+					"A RetryValue must not contain values beyond the expected attribute types. "+
 					"This is always an issue with the provider and should be reported to the provider developers.\n\n"+
-					fmt.Sprintf("Extra RetryableErrorsValue Attribute Name: %s", name),
+					fmt.Sprintf("Extra RetryValue Attribute Name: %s", name),
 			)
 		}
 	}
@@ -211,7 +221,7 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 		return NewRetryValueUnknown(), diags
 	}
 
-	errorMessageRegexAttribute, ok := attributes[errorMessageRegexAttributeName]
+	errorMessageRegexAttribute, ok := attributes["error_message_regex"]
 
 	if !ok {
 		diags.AddError(
@@ -229,7 +239,7 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 			fmt.Sprintf(`error_message_regex expected to be basetypes.ListValue, was: %T`, errorMessageRegexAttribute))
 	}
 
-	intervalSecondsAttribute, ok := attributes[intervalSecondsAttributeName]
+	intervalSecondsAttribute, ok := attributes["interval_seconds"]
 
 	if !ok {
 		diags.AddError(
@@ -247,7 +257,7 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 			fmt.Sprintf(`interval_seconds expected to be basetypes.Int64Value, was: %T`, intervalSecondsAttribute))
 	}
 
-	maxIntervalSecondsAttribute, ok := attributes[maxIntervalSecondsAttributeName]
+	maxIntervalSecondsAttribute, ok := attributes["max_interval_seconds"]
 
 	if !ok {
 		diags.AddError(
@@ -265,7 +275,7 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 			fmt.Sprintf(`max_interval_seconds expected to be basetypes.Int64Value, was: %T`, maxIntervalSecondsAttribute))
 	}
 
-	multiplierAttribute, ok := attributes[multiplierAttributeName]
+	multiplierAttribute, ok := attributes["multiplier"]
 
 	if !ok {
 		diags.AddError(
@@ -275,15 +285,15 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 		return NewRetryValueUnknown(), diags
 	}
 
-	multiplierVal, ok := multiplierAttribute.(basetypes.NumberValue)
+	multiplierVal, ok := multiplierAttribute.(basetypes.Float64Value)
 
 	if !ok {
 		diags.AddError(
 			"Attribute Wrong Type",
-			fmt.Sprintf(`multiplier expected to be basetypes.NumberValue, was: %T`, multiplierAttribute))
+			fmt.Sprintf(`multiplier expected to be basetypes.Float64Value, was: %T`, multiplierAttribute))
 	}
 
-	randomizationFactorAttribute, ok := attributes[randomizationFactorAttributeName]
+	randomizationFactorAttribute, ok := attributes["randomization_factor"]
 
 	if !ok {
 		diags.AddError(
@@ -293,12 +303,12 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 		return NewRetryValueUnknown(), diags
 	}
 
-	randomizationFactorVal, ok := randomizationFactorAttribute.(basetypes.NumberValue)
+	randomizationFactorVal, ok := randomizationFactorAttribute.(basetypes.Float64Value)
 
 	if !ok {
 		diags.AddError(
 			"Attribute Wrong Type",
-			fmt.Sprintf(`randomization_factor expected to be basetypes.NumberValue, was: %T`, randomizationFactorAttribute))
+			fmt.Sprintf(`randomization_factor expected to be basetypes.Float64Value, was: %T`, randomizationFactorAttribute))
 	}
 
 	if diags.HasError() {
@@ -315,7 +325,7 @@ func NewRetryValue(attributeTypes map[string]attr.Type, attributes map[string]at
 	}, diags
 }
 
-func NewRetryableErrorsValueMust(attributeTypes map[string]attr.Type, attributes map[string]attr.Value) RetryValue {
+func NewRetryValueMust(attributeTypes map[string]attr.Type, attributes map[string]attr.Value) RetryValue {
 	object, diags := NewRetryValue(attributeTypes, attributes)
 
 	if diags.HasError() {
@@ -330,7 +340,7 @@ func NewRetryableErrorsValueMust(attributeTypes map[string]attr.Type, attributes
 				diagnostic.Detail()))
 		}
 
-		panic("NewRetryableErrorsValueMust received error(s): " + strings.Join(diagsStrings, "\n"))
+		panic("NewRetryValueMust received error(s): " + strings.Join(diagsStrings, "\n"))
 	}
 
 	return object
@@ -373,15 +383,21 @@ func (t RetryType) ValueFromTerraform(ctx context.Context, in tftypes.Value) (at
 		attributes[k] = a
 	}
 
-	return NewRetryableErrorsValueMust(RetryValue{}.AttributeTypes(ctx), attributes), nil
+	return NewRetryValueMust(RetryValue{}.AttributeTypes(ctx), attributes), nil
 }
 
+func (t RetryType) ValueType(ctx context.Context) attr.Value {
+	return RetryValue{}
+}
+
+var _ basetypes.ObjectValuable = RetryValue{}
+
 type RetryValue struct {
-	ErrorMessageRegex   types.List   `tfsdk:"error_message_regex"`
-	IntervalSeconds     types.Int64  `tfsdk:"interval_seconds"`
-	MaxIntervalSeconds  types.Int64  `tfsdk:"max_interval_seconds"`
-	Multiplier          types.Number `tfsdk:"multiplier"`
-	RandomizationFactor types.Number `tfsdk:"randomization_factor"`
+	ErrorMessageRegex   basetypes.ListValue    `tfsdk:"error_message_regex"`
+	IntervalSeconds     basetypes.Int64Value   `tfsdk:"interval_seconds"`
+	MaxIntervalSeconds  basetypes.Int64Value   `tfsdk:"max_interval_seconds"`
+	Multiplier          basetypes.Float64Value `tfsdk:"multiplier"`
+	RandomizationFactor basetypes.Float64Value `tfsdk:"randomization_factor"`
 	state               attr.ValueState
 }
 
@@ -391,13 +407,13 @@ func (v RetryValue) ToTerraformValue(ctx context.Context) (tftypes.Value, error)
 	var val tftypes.Value
 	var err error
 
-	attrTypes[errorMessageRegexAttributeName] = basetypes.ListType{
+	attrTypes["error_message_regex"] = basetypes.ListType{
 		ElemType: types.StringType,
 	}.TerraformType(ctx)
-	attrTypes[intervalSecondsAttributeName] = basetypes.Int64Type{}.TerraformType(ctx)
-	attrTypes[maxIntervalSecondsAttributeName] = basetypes.Int64Type{}.TerraformType(ctx)
-	attrTypes[multiplierAttributeName] = basetypes.NumberType{}.TerraformType(ctx)
-	attrTypes[randomizationFactorAttributeName] = basetypes.NumberType{}.TerraformType(ctx)
+	attrTypes["interval_seconds"] = basetypes.Int64Type{}.TerraformType(ctx)
+	attrTypes["max_interval_seconds"] = basetypes.Int64Type{}.TerraformType(ctx)
+	attrTypes["multiplier"] = basetypes.Float64Type{}.TerraformType(ctx)
+	attrTypes["randomization_factor"] = basetypes.Float64Type{}.TerraformType(ctx)
 
 	objectType := tftypes.Object{AttributeTypes: attrTypes}
 
@@ -411,7 +427,7 @@ func (v RetryValue) ToTerraformValue(ctx context.Context) (tftypes.Value, error)
 			return tftypes.NewValue(objectType, tftypes.UnknownValue), err
 		}
 
-		vals[errorMessageRegexAttributeName] = val
+		vals["error_message_regex"] = val
 
 		val, err = v.IntervalSeconds.ToTerraformValue(ctx)
 
@@ -419,7 +435,7 @@ func (v RetryValue) ToTerraformValue(ctx context.Context) (tftypes.Value, error)
 			return tftypes.NewValue(objectType, tftypes.UnknownValue), err
 		}
 
-		vals[intervalSecondsAttributeName] = val
+		vals["interval_seconds"] = val
 
 		val, err = v.MaxIntervalSeconds.ToTerraformValue(ctx)
 
@@ -427,7 +443,7 @@ func (v RetryValue) ToTerraformValue(ctx context.Context) (tftypes.Value, error)
 			return tftypes.NewValue(objectType, tftypes.UnknownValue), err
 		}
 
-		vals[maxIntervalSecondsAttributeName] = val
+		vals["max_interval_seconds"] = val
 
 		val, err = v.Multiplier.ToTerraformValue(ctx)
 
@@ -435,7 +451,7 @@ func (v RetryValue) ToTerraformValue(ctx context.Context) (tftypes.Value, error)
 			return tftypes.NewValue(objectType, tftypes.UnknownValue), err
 		}
 
-		vals[multiplierAttributeName] = val
+		vals["multiplier"] = val
 
 		val, err = v.RandomizationFactor.ToTerraformValue(ctx)
 
@@ -443,7 +459,7 @@ func (v RetryValue) ToTerraformValue(ctx context.Context) (tftypes.Value, error)
 			return tftypes.NewValue(objectType, tftypes.UnknownValue), err
 		}
 
-		vals[randomizationFactorAttributeName] = val
+		vals["randomization_factor"] = val
 
 		if err := tftypes.ValidateValue(objectType, vals); err != nil {
 			return tftypes.NewValue(objectType, tftypes.UnknownValue), err
@@ -468,36 +484,44 @@ func (v RetryValue) IsUnknown() bool {
 }
 
 func (v RetryValue) String() string {
-	return "retry.RetryableErrorsValue"
+	return "RetryValue"
 }
 
 func (v RetryValue) ToObjectValue(ctx context.Context) (basetypes.ObjectValue, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	errorMessageRegexVal, d := types.ListValue(types.StringType, v.ErrorMessageRegex.Elements())
+	var errorMessageRegexVal basetypes.ListValue
+	switch {
+	case v.ErrorMessageRegex.IsUnknown():
+		errorMessageRegexVal = types.ListUnknown(types.StringType)
+	case v.ErrorMessageRegex.IsNull():
+		errorMessageRegexVal = types.ListNull(types.StringType)
+	default:
+		var d diag.Diagnostics
+		errorMessageRegexVal, d = types.ListValue(types.StringType, v.ErrorMessageRegex.Elements())
+		diags.Append(d...)
+	}
 
-	diags.Append(d...)
-
-	if d.HasError() {
+	if diags.HasError() {
 		return types.ObjectUnknown(map[string]attr.Type{
-			errorMessageRegexAttributeName: basetypes.ListType{
+			"error_message_regex": basetypes.ListType{
 				ElemType: types.StringType,
 			},
-			intervalSecondsAttributeName:     basetypes.Int64Type{},
-			maxIntervalSecondsAttributeName:  basetypes.Int64Type{},
-			multiplierAttributeName:          basetypes.NumberType{},
-			randomizationFactorAttributeName: basetypes.NumberType{},
+			"interval_seconds":     basetypes.Int64Type{},
+			"max_interval_seconds": basetypes.Int64Type{},
+			"multiplier":           basetypes.Float64Type{},
+			"randomization_factor": basetypes.Float64Type{},
 		}), diags
 	}
 
 	attributeTypes := map[string]attr.Type{
-		errorMessageRegexAttributeName: basetypes.ListType{
+		"error_message_regex": basetypes.ListType{
 			ElemType: types.StringType,
 		},
-		intervalSecondsAttributeName:     basetypes.Int64Type{},
-		maxIntervalSecondsAttributeName:  basetypes.Int64Type{},
-		multiplierAttributeName:          basetypes.NumberType{},
-		randomizationFactorAttributeName: basetypes.NumberType{},
+		"interval_seconds":     basetypes.Int64Type{},
+		"max_interval_seconds": basetypes.Int64Type{},
+		"multiplier":           basetypes.Float64Type{},
+		"randomization_factor": basetypes.Float64Type{},
 	}
 
 	if v.IsNull() {
@@ -511,11 +535,11 @@ func (v RetryValue) ToObjectValue(ctx context.Context) (basetypes.ObjectValue, d
 	objVal, diags := types.ObjectValue(
 		attributeTypes,
 		map[string]attr.Value{
-			errorMessageRegexAttributeName:   errorMessageRegexVal,
-			intervalSecondsAttributeName:     v.IntervalSeconds,
-			maxIntervalSecondsAttributeName:  v.MaxIntervalSeconds,
-			multiplierAttributeName:          v.Multiplier,
-			randomizationFactorAttributeName: v.RandomizationFactor,
+			"error_message_regex":  errorMessageRegexVal,
+			"interval_seconds":     v.IntervalSeconds,
+			"max_interval_seconds": v.MaxIntervalSeconds,
+			"multiplier":           v.Multiplier,
+			"randomization_factor": v.RandomizationFactor,
 		})
 
 	return objVal, diags
@@ -560,21 +584,55 @@ func (v RetryValue) Equal(o attr.Value) bool {
 }
 
 func (v RetryValue) Type(ctx context.Context) attr.Type {
-	return basetypes.ObjectType{
-		AttrTypes: v.AttributeTypes(ctx),
+	return RetryType{
+		basetypes.ObjectType{
+			AttrTypes: v.AttributeTypes(ctx),
+		},
 	}
 }
 
 func (v RetryValue) AttributeTypes(ctx context.Context) map[string]attr.Type {
 	return map[string]attr.Type{
-		errorMessageRegexAttributeName: basetypes.ListType{
+		"error_message_regex": basetypes.ListType{
 			ElemType: types.StringType,
 		},
-		intervalSecondsAttributeName:     basetypes.Int64Type{},
-		maxIntervalSecondsAttributeName:  basetypes.Int64Type{},
-		multiplierAttributeName:          basetypes.NumberType{},
-		randomizationFactorAttributeName: basetypes.NumberType{},
+		"interval_seconds":     basetypes.Int64Type{},
+		"max_interval_seconds": basetypes.Int64Type{},
+		"multiplier":           basetypes.Float64Type{},
+		"randomization_factor": basetypes.Float64Type{},
 	}
+}
+
+func (v RetryValue) GetIntervalSeconds() int {
+	return int(v.IntervalSeconds.ValueInt64())
+}
+
+func (v RetryValue) GetIntervalSecondsAsDuration() time.Duration {
+	return time.Duration(v.IntervalSeconds.ValueInt64()) * time.Second
+}
+
+func (v RetryValue) GetMaxIntervalSeconds() int {
+	return int(v.MaxIntervalSeconds.ValueInt64())
+}
+
+func (v RetryValue) GetMaxIntervalSecondsAsDuration() time.Duration {
+	return time.Duration(v.MaxIntervalSeconds.ValueInt64()) * time.Second
+}
+
+func (v RetryValue) GetMultiplier() float64 {
+	return v.Multiplier.ValueFloat64()
+}
+
+func (v RetryValue) GetRandomizationFactor() float64 {
+	return v.RandomizationFactor.ValueFloat64()
+}
+
+func (v RetryValue) GetDefaultRetryableStatusCodes() []int {
+	return defaultRetryableStatusCodes
+}
+
+func (v RetryValue) GetDefaultRetryableReadAfterCreateStatusCodes() []int {
+	return defaultRetryableReadAfterCreateStatusCodes
 }
 
 func (v RetryValue) GetErrorMessages() []string {
@@ -601,71 +659,4 @@ func (v RetryValue) GetErrorMessagesRegex() []regexp.Regexp {
 		res[i] = *regexp.MustCompile(msg)
 	}
 	return res
-}
-
-func (v RetryValue) GetIntervalSeconds() int {
-	return v.getInt64AttrValue(intervalSecondsAttributeName)
-}
-
-func (v RetryValue) GetIntervalSecondsAsDuration() time.Duration {
-	return time.Duration(v.IntervalSeconds.ValueInt64()) * time.Second
-}
-
-func (v RetryValue) GetMaxIntervalSeconds() int {
-	return v.getInt64AttrValue(maxIntervalSecondsAttributeName)
-}
-
-func (v RetryValue) GetMaxIntervalSecondsAsDuration() time.Duration {
-	return time.Duration(v.MaxIntervalSeconds.ValueInt64()) * time.Second
-}
-
-func (v RetryValue) GetMultiplier() float64 {
-	return v.getNumberAttrValue(multiplierAttributeName)
-}
-
-func (v RetryValue) GetRandomizationFactor() float64 {
-	return v.getNumberAttrValue(randomizationFactorAttributeName)
-}
-
-func (v RetryValue) getNumberAttrValue(name string) float64 {
-	switch name {
-	case multiplierAttributeName:
-		return bigFloat2Float64(v.Multiplier.ValueBigFloat())
-	case randomizationFactorAttributeName:
-		return bigFloat2Float64(v.RandomizationFactor.ValueBigFloat())
-	default:
-		return 0
-	}
-}
-
-func bigFloat2Float64(bf *big.Float) float64 {
-	f, _ := bf.Float64()
-	return f
-}
-
-func (v RetryValue) getInt64AttrValue(name string) int {
-	switch name {
-	case intervalSecondsAttributeName:
-		return int(v.IntervalSeconds.ValueInt64())
-	case maxIntervalSecondsAttributeName:
-		return int(v.MaxIntervalSeconds.ValueInt64())
-	default:
-		return 0
-	}
-}
-
-func (v RetryValue) AddDefaultValuesIfUnknownOrNull() RetryValue {
-	if v.IntervalSeconds.IsUnknown() || v.IntervalSeconds.IsNull() {
-		v.IntervalSeconds = basetypes.NewInt64Value(defaultIntervalSeconds)
-	}
-	if v.MaxIntervalSeconds.IsUnknown() || v.MaxIntervalSeconds.IsNull() {
-		v.MaxIntervalSeconds = basetypes.NewInt64Value(defaultMaxIntervalSeconds)
-	}
-	if v.Multiplier.IsUnknown() || v.Multiplier.IsNull() {
-		v.Multiplier = basetypes.NewNumberValue(big.NewFloat(defaultMultiplier))
-	}
-	if v.RandomizationFactor.IsUnknown() || v.RandomizationFactor.IsNull() {
-		v.RandomizationFactor = basetypes.NewNumberValue(big.NewFloat(defaultRandomizationFactor))
-	}
-	return v
 }
