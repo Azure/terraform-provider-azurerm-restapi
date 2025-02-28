@@ -1094,9 +1094,16 @@ func (r *AzapiResource) MoveState(ctx context.Context) []resource.StateMover {
 					response.Diagnostics.AddError("Invalid source state", "The source state does not contain an id")
 					return
 				}
-				id, err := parse.ResourceID(requestID)
+
+				azureId, err := parse.AzurermIdToAzureId(request.SourceTypeName, requestID)
 				if err != nil {
 					response.Diagnostics.AddError("Invalid Resource ID", fmt.Errorf("parsing Resource ID %q: %+v", requestID, err).Error())
+					return
+				}
+
+				id, err := parse.ResourceID(azureId)
+				if err != nil {
+					response.Diagnostics.AddError("Invalid Resource ID", fmt.Errorf("parsing Resource ID %q: %+v", azureId, err).Error())
 					return
 				}
 

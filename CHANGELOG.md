@@ -11,6 +11,7 @@ ENHANCEMENTS:
 BUG FIXES:
 - Fix a bug that query parameters and headers don't work properly with unknown values
 - Fix more edge cases that the provider produced inconsistent result after apply when default output feature is enabled.
+- Fix a bug that when moving resource from `azurerm` resource, the id could not be parsed correctly.
 
 
 ## v2.2.0
