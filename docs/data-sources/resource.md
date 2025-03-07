@@ -159,7 +159,7 @@ Optional:
 
 Read-Only:
 
-- `identity_ids` (List of String) A list of User Managed Identity ID's which should be assigned to the azure resource.
+- `identity_ids` (Set of String) A set of User Managed Identity ID's which should be assigned to the azure resource.
 - `principal_id` (String) The Principal ID for the Service Principal associated with the Managed Service Identity of this Azure resource.
 - `tenant_id` (String) The Tenant ID for the Service Principal associated with the Managed Service Identity of this Azure resource.
 - `type` (String) The Type of Identity which should be used for this azure resource. Possible values are `SystemAssigned`, `UserAssigned` and `SystemAssigned,UserAssigned`

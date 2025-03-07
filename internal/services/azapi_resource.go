@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/terraform-provider-azapi/utils"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -338,11 +339,11 @@ func (r *AzapiResource) Schema(ctx context.Context, _ resource.SchemaRequest, re
 							MarkdownDescription: docstrings.IdentityType(),
 						},
 
-						"identity_ids": schema.ListAttribute{
+						"identity_ids": schema.SetAttribute{
 							ElementType: types.StringType,
 							Optional:    true,
-							Validators: []validator.List{
-								listvalidator.ValueStringsAre(myvalidator.StringIsUserAssignedIdentityID()),
+							Validators: []validator.Set{
+								setvalidator.ValueStringsAre(myvalidator.StringIsUserAssignedIdentityID()),
 							},
 							MarkdownDescription: docstrings.IdentityIds(),
 						},

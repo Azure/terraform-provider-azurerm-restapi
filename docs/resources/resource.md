@@ -195,7 +195,7 @@ Required:
 
 Optional:
 
-- `identity_ids` (List of String) A list of User Managed Identity ID's which should be assigned to the azure resource.
+- `identity_ids` (Set of String) A set of User Managed Identity ID's which should be assigned to the azure resource.
 
 Read-Only:
 

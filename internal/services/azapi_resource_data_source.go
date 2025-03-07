@@ -128,7 +128,7 @@ func (r *AzapiResourceDataSource) Schema(ctx context.Context, request datasource
 							MarkdownDescription: docstrings.IdentityTenantID(),
 						},
 
-						"identity_ids": schema.ListAttribute{
+						"identity_ids": schema.SetAttribute{
 							Computed:            true,
 							ElementType:         types.StringType,
 							MarkdownDescription: docstrings.IdentityIds(),
